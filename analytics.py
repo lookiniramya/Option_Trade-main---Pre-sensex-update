@@ -1,3 +1,14 @@
+STRIKE_GAPS = {"NIFTY": 50, "BANKNIFTY": 100, "FINNIFTY": 50, "MIDCPNIFTY": 25, "SENSEX": 100}
+LOT_SIZES   = {"NIFTY": 75, "BANKNIFTY": 15,  "FINNIFTY": 40, "MIDCPNIFTY": 75, "SENSEX": 10}
+
+def get_strike_gap(symbol="NIFTY"):
+    """Return the strike interval for a given index."""
+    return STRIKE_GAPS.get(str(symbol).upper(), 50)
+
+def get_lot_size(symbol="NIFTY"):
+    """Return the lot size for a given index."""
+    return LOT_SIZES.get(str(symbol).upper(), 75)
+
 """
 analytics.py — Core analytics engine for Options Intelligence Platform
 All computation logic is isolated here for testability and reuse.
@@ -99,7 +110,8 @@ def compute_market_snapshot(
 # ─── 2. ATM STRIKE IDENTIFICATION ───────────────────────────────────────────
 
 def identify_atm_strike(
-    df_calls: pd.DataFrame, df_puts: pd.DataFrame, spot_price: float
+    df_calls: pd.DataFrame, df_puts: pd.DataFrame, spot_price: float,
+    symbol: str = "NIFTY"
 ) -> float:
     """
     Find the ATM (At-The-Money) strike closest to spot price.
@@ -115,7 +127,7 @@ def identify_atm_strike(
         strikes = df_puts["strike_price"].dropna().tolist()
 
     if not strikes:
-        return round(spot_price / 50) * 50  # Nearest 50
+        return round(spot_price / get_strike_gap(symbol)) * get_strike_gap(symbol)
 
     strikes_arr = np.array(strikes)
     atm = strikes_arr[np.argmin(np.abs(strikes_arr - spot_price))]
