@@ -919,6 +919,73 @@ def render_sidebar():
                 st.query_params.clear()
                 st.rerun()
 
+            # ── Daily Token Refresh ───────────────────────────────────────────────
+            with st.expander("🔑 Refresh Token (Daily)", expanded=False):
+                st.caption("Paytm token expires at 6 AM daily. Update it here from your phone.")
+                _ak = st.session_state.get("api_key", "")
+                if _ak:
+                    _refresh_url = f"https://login.paytmmoney.com/merchant-login?apiKey={_ak}&state=optionsiq"
+                    st.link_button("1️⃣ Open Paytm Login →", _refresh_url,
+                                   use_container_width=True, type="primary")
+                    st.caption("After login, copy the full URL from browser address bar.")
+                _new_token_input = st.text_input(
+                    "2️⃣ Paste redirect URL or requestToken",
+                    placeholder="https://...?requestToken=abc123  OR  abc123...",
+                    key="daily_token_refresh_input", type="password",
+                )
+                _new_expiry = st.text_input(
+                    "3️⃣ New expiry (if changed)",
+                    placeholder="DD-MM-YYYY e.g. 15-05-2026",
+                    value=st.session_state.get("selected_expiry", ""),
+                    key="daily_expiry_refresh_input",
+                )
+                if st.button("🔄 Update Token & Restart", use_container_width=True,
+                             type="primary", key="btn_daily_refresh"):
+                    import urllib.parse as _ulp
+                    _raw = str(_new_token_input).strip()
+                    if not _raw:
+                        st.error("Paste the requestToken or redirect URL first.")
+                    else:
+                        _new_req = _raw
+                        if "requestToken=" in _raw:
+                            try:
+                                _q = _ulp.urlparse(_raw).query
+                                _p = dict(pair.split("=",1) for pair in _q.split("&") if "=" in pair)
+                                _new_req = _p.get("requestToken", _raw)
+                            except Exception:
+                                pass
+                        try:
+                            _resp = requests.post(
+                                f"{PAYTM_BASE}/accounts/v2/gettoken",
+                                json={"api_key": st.session_state.get("api_key",""),
+                                      "api_secret_key": st.session_state.get("api_secret",""),
+                                      "request_token": _new_req},
+                                timeout=15,
+                            )
+                            _body = _resp.json()
+                            if _resp.status_code == 200:
+                                _new_at = (_body.get("data",{}).get("access_token") or
+                                           _body.get("access_token",""))
+                                if _new_at:
+                                    st.session_state.access_token = _new_at
+                                    if _new_expiry:
+                                        st.session_state.selected_expiry = _new_expiry.strip()
+                                    st.session_state.option_data = None
+                                    st.session_state.live_price = {}
+                                    st.session_state.last_refresh = None
+                                    _save_persistent_session()
+                                    st.success("✅ Token refreshed! Fetching fresh data...")
+                                    time.sleep(0.5)
+                                    st.rerun()
+                                else:
+                                    st.error("Token not found in response.")
+                            else:
+                                st.error(f"❌ Error {_resp.status_code}")
+                                if _resp.status_code == 400:
+                                    st.warning("requestToken expired — go to Paytm login again and paste quickly.")
+                        except Exception as _te:
+                            st.error(f"❌ {_te}")
+
             st.divider()
             st.markdown("### ⚙️ Controls")
             sym_list = ["NIFTY","BANKNIFTY","FINNIFTY","MIDCPNIFTY","SENSEX"]
